@@ -29,6 +29,9 @@ const jsmNames = new Set(Array.from(jsmTools).map(basename));
 // Non-JSM tools whitelist (those imports can be left as is)
 const nonJSMTools = new Set(['js/WebGL.js', 'js/libs/stats.min.js']);
 
+// Those are THREE imports colliding with standard ones; they will be aliased to ThreeXXX
+const needAliasing = new Set(['Math']);
+
 // Examples HTML files to process
 //var files = ['webgl_loader_gltf.html'];
 var files = fs.readdirSync(srcFolder).filter(f => f.endsWith('.html'));
@@ -177,9 +180,14 @@ function rewriteMainScript(code, moduleImports) {
 
 				if (isCore) {
 					coreImports.add(propName);
-				}
+        }
+        
+        // Take care of aliasing
+        if (needAliasing.has(propName)) {
+          me.property.name = getAlias(propName);
+        }
 
-				// Rewrite AST: THREE.XXX => XXX
+				// Rewrite AST: THREE.XXX => XXX (or its aliasing, see above)
 				path.replace(me.property);
 			}
 
@@ -208,8 +216,9 @@ function rewriteMainScript(code, moduleImports) {
 
 function buildASTImport(what, from) {
 	// See node_modules/ast-types/gen/builders.d.ts
-	var b = recast.types.builders;
-	var specifiers = what.map(s => b.importSpecifier(b.identifier(s)));
+  var b = recast.types.builders;
+  var id = b.identifier;
+	var specifiers = what.map(s => needAliasing.has(s) ? b.importSpecifier(id(s), id(getAlias(s))) :  b.importSpecifier(id(s)));
 	var source = b.literal(from);
 	return b.importDeclaration(specifiers, source);
 }
@@ -257,6 +266,10 @@ function basename(f) {
 
 function toJSMPath(p) {
 	return p.replace(/^js/, 'jsm');
+}
+
+function getAlias(i) {
+  return 'Three' + i;
 }
 
 function log(msg) {
