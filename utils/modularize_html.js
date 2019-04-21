@@ -154,28 +154,22 @@ function rewriteMainScript(code, moduleImports) {
 	// See types.visit(ast...) at https://github.com/benjamn/ast-types
 	// See https://github.com/benjamn/recast/issues/101#issuecomment-66134019
 	recast.visit(ast, {
-		visitNewExpression: function (path) {
-			var node = path.node;
-			var callee = node.callee;
+		visitMemberExpression: function(path) {
+			var me = path.node;
 
-			if (callee.type === 'MemberExpression') {
+			// Is this a "THREE.XXX" expression?
+			if (me.object.type === 'Identifier' && me.object.name === 'THREE') {
+
 				// Sanity checks
-				if (callee.object.type !== 'Identifier') {
-					throw new Error('Unexpected type for MemberExpression object: ' + callee.object.type);
-				}
-				if (callee.property.type !== 'Identifier') {
-					throw new Error('Unexpected type for MemberExpression property: ' + callee.property.type);
-				}
-				if (callee.object.name !== 'THREE') {
-					throw new Error('Unexpected NewExpression on ' + callee.object.name);
+				if (me.property.type !== 'Identifier') {
+					throw new Error('Unexpected type for MemberExpression property: ' + me.property.type);
 				}
 
-				// OK, this is a "new THREE.XXX" expression. Is this a core or examples/js import?
-				var propName = callee.property.name;
+				// Is this a core or examples/js import?
+				var propName = me.property.name;
 				var isCore = !jsNames.has(propName);
 				var isJsm = jsmNames.has(propName);
-				log('NewExpression on MemberExpression: object=' + callee.object.name
-					+ ', property=' + callee.property.name + ', isCore=' + isCore + ', isJsm=' + isJsm);
+				log('MemberExpression: object=' + me.object.name + ', property=' + me.property.name + ', isCore=' + isCore + ', isJsm=' + isJsm);
 
 				if (isCore && isJsm) {
 					throw new Error('Unexpected discrepancy');
@@ -185,17 +179,8 @@ function rewriteMainScript(code, moduleImports) {
 					coreImports.add(propName);
 				}
 
-				// Rewrite AST: new THREE.XXX => new XXX
-				node.callee = callee.property
-			}
-
-			else if (node.callee.type === 'Identifier') {
-				// Leave this alone (probably a standard constructor or a whitelisted tool)
-				log('NewExpression on Identifier: name=' + callee.name);
-			}
-
-			else {
-				throw new Error('Unexpected NewExpression callee of type ' + node.callee.type)
+				// Rewrite AST: THREE.XXX => XXX
+				path.replace(me.property);
 			}
 
 			// Continue visiting down this subtree
