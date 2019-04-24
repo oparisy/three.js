@@ -60,7 +60,7 @@ console.log(success + ' examples converted out of ' + files.length);
 
 
 
-// Convert an HTML example/ file to a module-importing one
+// Convert an HTML examples/ file to a module-importing one
 function convert(path) {
 	var contents = fs.readFileSync(srcFolder + path, encoding);
 
@@ -70,9 +70,12 @@ function convert(path) {
 	} catch (err) {
 		console.log('Error while processing ' + file, verbose ? err : '')
 		return false;
-	}
+  }
 
-	fs.writeFileSync(dstFolder + path, result.html, encoding);
+  // Remove temporary markers introduced while removing <script> tags, and the blank lines following them
+  let finalHTML = result.html.replace(/[ \t]*<deleted><[/]deleted>(\r\n)+/g, '');
+
+	fs.writeFileSync(dstFolder + path, finalHTML, encoding);
 	console.log(path + ' was successfully modularized');
 	return true;
 }
@@ -140,8 +143,9 @@ function modularize(tree) {
 	return tree;
 
 	function removeTag(node) {
-		node.tag = false;
-		node.content = [];
+		node.tag = 'deleted'; // A temporary marker
+    node.content = [];
+    node.attrs = [];
 		return node;
 	}
 }
